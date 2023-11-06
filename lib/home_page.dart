@@ -1,9 +1,10 @@
 import 'package:allen/featurebox.dart';
+import 'package:allen/serveice.dart';
+import 'package:allen/toats.dart';
 import 'package:flutter/material.dart';
 import 'package:allen/pallete.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -16,30 +17,37 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   SpeechToText speechToText = SpeechToText();
   String lastWords = '';
+  bool speechEnabled = false;
+  final OpenAIservice openAIservice = OpenAIservice();
+
   @override
   void initState() {
     super.initState();
+
     initSpeechtoText();
   }
 
   Future<void> initSpeechtoText() async {
-    await speechToText.initialize();
+    speechEnabled = await speechToText.initialize();
     setState(() {});
   }
+
   Future<void> startListening() async {
     await speechToText.listen(onResult: onSpeechResult);
     setState(() {});
   }
+
   Future<void> stopListening() async {
     await speechToText.stop();
     setState(() {});
   }
+
   void onSpeechResult(SpeechRecognitionResult result) {
     setState(() {
       lastWords = result.recognizedWords;
+      print(result.recognizedWords);
     });
   }
-
 
   double fontSizeTitle = 20; // Initial value
   double suggestionBoxWidth = 0.8; // Initial value
@@ -62,7 +70,13 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CHaCHa.AI',style: TextStyle(fontFamily: 'Cera Pro',fontStyle: FontStyle.italic,decorationStyle: TextDecorationStyle.wavy),),
+        title: const Text(
+          'CHaCHa.AI',
+          style: TextStyle(
+              fontFamily: 'Cera Pro',
+              fontStyle: FontStyle.italic,
+              decorationStyle: TextDecorationStyle.wavy),
+        ),
         centerTitle: true,
         backgroundColor: Pallete.whiteColor,
         elevation: 0,
@@ -96,8 +110,11 @@ class _HomePageState extends State<HomePage> {
                 // The assistant image
                 height: screenHeight * 0.12,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(shape: BoxShape.circle,image: DecorationImage(image: AssetImage('assets/images/virtualAssistant.png'))),
-                
+                decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    image: DecorationImage(
+                        image:
+                            AssetImage('assets/images/virtualAssistant.png'))),
               ),
             ],
           ),
@@ -125,19 +142,17 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          Container(
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-              child: Align(
-                alignment: Alignment.bottomLeft,
-                child: Text(
-                  'Features',
-                  style: TextStyle(
-                    color: Pallete.mainFontColor,
-                    fontSize: 18,
-                    fontFamily: 'Cera Pro',
-                    fontWeight: FontWeight.bold,
-                  ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: Text(
+                'Features',
+                style: TextStyle(
+                  color: Pallete.mainFontColor,
+                  fontSize: 18,
+                  fontFamily: 'Cera Pro',
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -166,50 +181,42 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+            child: Text(
+              // If listening is active show the recognized words
+              speechToText.isListening
+                  ? lastWords
+                  // If listening isn't active but could be tell the user
+                  // how to start it, otherwise indicate that speech
+                  // recognition is not yet ready or not supported on
+                  // the target device
+                  : speechEnabled
+                      ? 'Tap the microphone to start listening...'
+                      : 'Speech not available',
+              style: const TextStyle(fontFamily: 'Cera Pro'),
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async{
-          if(await speechToText.hasPermission && !speechToText.isListening){
-           await startListening();
-           Fluttertoast.showToast(
-        msg: "Recording Started",
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.CENTER,
-        timeInSecForIosWeb: 1,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
-        fontSize: 16.0
-    );
-          }
-          else if(speechToText.isListening){
-           await stopListening();
-           Fluttertoast.showToast(
-        msg: "Recording Stopped",
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.CENTER,
-        timeInSecForIosWeb: 1,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
-        fontSize: 16.0
-    );
-           
-          }
-          else{
+        onPressed: () async {
+          if (await speechToText.hasPermission && speechToText.isNotListening) {
+            await startListening();
+            ToastUtil.showToast('Recording Started');
+          } else if (speechToText.isListening) {
+            openAIservice.isArtPromptAPI(lastWords);
+
+            await stopListening();
+            ToastUtil.showToast('Recording Stopped');
+          } else {
             initSpeechtoText();
-            Fluttertoast.showToast(
-        msg: "Permission Denied",
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.CENTER,
-        timeInSecForIosWeb: 1,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
-        fontSize: 16.0
-    );
+            ToastUtil.showToast("Permission Denied");
           }
         },
         backgroundColor: Pallete.assistantCircleColor,
-        child: const Icon(Icons.mic),
+        tooltip: 'Listen',
+        child: Icon(speechToText.isNotListening ? Icons.mic_off : Icons.mic),
       ),
     );
   }
